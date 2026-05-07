@@ -363,6 +363,8 @@ make all
 مثلا:
 `./spoof remote --forward 127.0.0.1:51820 --spoof-ip-file /path/to/src.txt .....`
 
+  </details>
+  
 ---
 
 ## حمایت مالی (Donation)
