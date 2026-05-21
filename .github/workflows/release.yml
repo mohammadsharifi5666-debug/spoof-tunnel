@@ -14,8 +14,40 @@ env:
   NODE_VERSION: '20'
 
 jobs:
+  # ─── Build eBPF program (nightly, bpf target, architecture-independent) ───
+  build-ebpf:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly Rust + BPF target
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Cache eBPF build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/xdp-ebpf
+
+      - name: Build eBPF program
+        working-directory: rust/xdp-ebpf
+        run: |
+          cargo build \
+            --target bpfel-unknown-none \
+            -Z build-std=core \
+            --release
+
+      - name: Upload eBPF binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: xdp-ebpf
+          path: rust/xdp-ebpf/target/bpfel-unknown-none/release/xdp-ebpf
+          retention-days: 1
+
   # ─── Test Rust ───
   test-rust:
+    needs: build-ebpf
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -28,13 +60,22 @@ jobs:
         with:
           workspaces: rust
 
+      - name: Install libelf-dev
+        run: sudo apt-get update && sudo apt-get install -y libelf-dev
+
+      - name: Download eBPF binary
+        uses: actions/download-artifact@v4
+        with:
+          name: xdp-ebpf
+          path: rust/xdp-ebpf/target/bpfel-unknown-none/release/
+
       - name: Rust test
         working-directory: rust
         run: cargo test
 
   # ─── Build spoof-tunnel (CGO_ENABLED=1, Rust + Go, Linux only) ───
   build-tunnel:
-    needs: test-rust
+    needs: [test-rust, build-ebpf]
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -50,7 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
+      - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust_target }}
@@ -60,9 +101,19 @@ jobs:
         with:
           workspaces: rust
 
-      - name: Install cross-compilation tools
-        if: matrix.goarch == 'arm64'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Install cross-compilation tools & libelf-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libelf-dev
+          if [ "${{ matrix.goarch }}" = "arm64" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
+
+      - name: Download eBPF binary
+        uses: actions/download-artifact@v4
+        with:
+          name: xdp-ebpf
+          path: rust/xdp-ebpf/target/bpfel-unknown-none/release/
 
       - name: Build Rust library
         working-directory: rust
