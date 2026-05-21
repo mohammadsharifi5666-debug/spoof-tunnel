@@ -195,18 +195,20 @@ fn try_process(ctx: &XdpContext) -> Result<u32, ()> {
             "r2 = r4",
             "r2 &= 2047",
             // if r2 == 0, skip the helper call
-            "if r2 == 0 goto +5",
+            "if r2 == 0 goto +6",
             // bpf_xdp_load_bytes(ctx, offset, dst, len) — args in r1-r4
-            "r1 = r6",          // ctx
-            "r3 = r5",          // dst buffer
-            "r4 = r2",          // len (verifier: [1, 2047] on this path)
+            "r1 = r7",          // r1 = ctx
+            "r4 = r2",          // r4 = len (verifier: [1, 2047] on this path)
+            "r2 = r8",          // r2 = payload_offset
+            "r3 = r5",          // r3 = dst buffer
             "call 189",         // bpf_xdp_load_bytes
             "goto +1",
             // zero case: set return to -1 (error)
             "r0 = -1",
             in("r4") payload_len,
             in("r5") payload_dst,
-            in("r6") ctx_ptr,
+            in("r7") ctx_ptr,
+            in("r8") payload_offset,
             out("r0") copied_len,
             // clobbers
             lateout("r1") _,
