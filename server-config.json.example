@@ -7,4 +7,4 @@
     "spoof_ip": "[IP_ADDRESS]", (or "spoof_ip_file": "/path/to/ips.txt")
     "spoof_port": 8090,
     "peer_spoof_ip": "[IP_ADDRESS]"
-}
+}127.0.0.1
